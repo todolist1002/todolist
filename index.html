@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - 스마트 To-Do List & 생산성 대시보드</title>
+  <meta name="description" content="세련되고 직관적인 스마트 할 일 관리 웹 애플리케이션 TaskFlow">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    
+    <!-- TOP NAVIGATION BAR -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <div class="logo-icon">
+          <i class="fa-solid fa-check-double"></i>
+        </div>
+        <span class="logo-text">TaskFlow<span class="logo-dot">.</span></span>
+      </div>
+
+      <div class="nav-search">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="searchInput" placeholder="할 일 검색... (단축키 '/')" autocomplete="off">
+        <span class="search-badge">/</span>
+      </div>
+
+      <div class="nav-right">
+        <!-- Navigation View Tabs -->
+        <nav class="view-tabs">
+          <button class="nav-tab active" data-view="dashboard-view" id="navDashboard">
+            <i class="fa-solid fa-list-check"></i>
+            <span>대시보드</span>
+          </button>
+          <button class="nav-tab" data-view="analytics-view" id="navAnalytics">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>통계 & 분석</span>
+          </button>
+          <button class="nav-tab" data-view="settings-view" id="navSettings">
+            <i class="fa-solid fa-gear"></i>
+            <span>설정</span>
+          </button>
+        </nav>
+
+        <!-- Theme Switcher -->
+        <button id="themeToggleBtn" class="theme-btn" title="다크/라이트 모드 전환">
+          <i class="fa-solid fa-moon dark-icon"></i>
+          <i class="fa-solid fa-sun light-icon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      
+      <!-- ==================== VIEW 1: DASHBOARD ==================== -->
+      <section id="dashboard-view" class="view-section active-view">
+        
+        <!-- Quick Stats Overview Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon icon-total">
+              <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">전체 할 일</span>
+              <span class="stat-value" id="statTotal">0</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon icon-pending">
+              <i class="fa-solid fa-spinner"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">진행 중</span>
+              <span class="stat-value" id="statPending">0</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon icon-completed">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">완료됨</span>
+              <span class="stat-value" id="statCompleted">0</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon icon-today">
+              <i class="fa-solid fa-calendar-day"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-label">오늘 마감</span>
+              <span class="stat-value" id="statToday">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar Card -->
+        <div class="progress-card">
+          <div class="progress-header">
+            <div class="progress-title">
+              <i class="fa-solid fa-bolt"></i>
+              <span>오늘의 목표 달성률</span>
+            </div>
+            <span class="progress-percentage" id="progressText">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Task Input Bar -->
+        <div class="task-input-wrapper">
+          <form id="quickTaskForm" class="quick-input-form">
+            <div class="input-field-group">
+              <i class="fa-solid fa-plus input-add-icon"></i>
+              <input type="text" id="quickTaskTitle" placeholder="새로운 할 일을 입력하세요... (Enter 키로 빠른 추가)" required autocomplete="off">
+            </div>
+            <div class="input-actions">
+              <button type="button" id="openDetailModalBtn" class="btn btn-secondary">
+                <i class="fa-solid fa-sliders"></i>
+                <span>상세 설정</span>
+              </button>
+              <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-plus"></i>
+                <span>추가</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Filter & Control Toolbar -->
+        <div class="toolbar">
+          <div class="filter-tabs">
+            <button class="filter-btn active" data-filter="all">전체</button>
+            <button class="filter-btn" data-filter="pending">진행 중</button>
+            <button class="filter-btn" data-filter="completed">완료됨</button>
+            <button class="filter-btn" data-filter="today">오늘 마감</button>
+            <button class="filter-btn" data-filter="starred">중요 <i class="fa-solid fa-star star-tab-icon"></i></button>
+          </div>
+
+          <div class="toolbar-controls">
+            <!-- Category Filter Dropdown -->
+            <div class="select-wrapper">
+              <i class="fa-solid fa-tag"></i>
+              <select id="categoryFilter">
+                <option value="all">모든 카테고리</option>
+              </select>
+            </div>
+
+            <!-- Sort Select Dropdown -->
+            <div class="select-wrapper">
+              <i class="fa-solid fa-arrow-down-short-wide"></i>
+              <select id="sortSelect">
+                <option value="dueDate">마감일순</option>
+                <option value="priority">우선순위순</option>
+                <option value="newest">최신 등록순</option>
+                <option value="alphabetical">이름순</option>
+              </select>
+            </div>
+
+            <button id="clearCompletedBtn" class="btn btn-ghost" title="완료된 할 일 전체 정리">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>완료 정리</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Task List Container -->
+        <div id="taskList" class="task-list">
+          <!-- Dynamically Rendered Tasks -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+          <div class="empty-icon">
+            <i class="fa-solid fa-clipboard-check"></i>
+          </div>
+          <h3 class="empty-title">등록된 할 일이 없습니다</h3>
+          <p class="empty-desc">새로운 목표나 업무를 등록하여 하루를 시작해보세요!</p>
+          <button class="btn btn-primary" onclick="document.getElementById('quickTaskTitle').focus()">
+            <i class="fa-solid fa-plus"></i> 첫 할 일 추가하기
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ==================== VIEW 2: ANALYTICS ==================== -->
+      <section id="analytics-view" class="view-section hidden-view">
+        <div class="analytics-header">
+          <h2><i class="fa-solid fa-chart-line"></i> 생산성 분석 & 통계</h2>
+          <p>나의 달성 현황과 카테고리별 비중을 분석하여 더 효율적인 관리를 도와드립니다.</p>
+        </div>
+
+        <div class="analytics-grid">
+          <!-- Completion Ring Card -->
+          <div class="analytics-card ring-card">
+            <h3>전체 달성률</h3>
+            <div class="donut-chart-wrapper">
+              <svg class="donut-svg" viewBox="0 0 160 160">
+                <circle class="donut-bg" cx="80" cy="80" r="70"></circle>
+                <circle id="donutProgress" class="donut-fill" cx="80" cy="80" r="70" stroke-dasharray="440" stroke-dashoffset="440"></circle>
+              </svg>
+              <div class="donut-text">
+                <span id="analyticsPercent" class="percent-num">0%</span>
+                <span class="percent-label">완료율</span>
+              </div>
+            </div>
+            <div class="ring-stats">
+              <div class="r-stat">
+                <span class="r-val" id="analyticsCompleted">0</span>
+                <span class="r-lbl">완료</span>
+              </div>
+              <div class="r-divider"></div>
+              <div class="r-stat">
+                <span class="r-val" id="analyticsPending">0</span>
+                <span class="r-lbl">남은 일</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Productivity Streak Card -->
+          <div class="analytics-card streak-card">
+            <h3><i class="fa-solid fa-fire text-amber"></i> 생산성 스트릭 (Streak)</h3>
+            <div class="streak-body">
+              <div class="streak-count-box">
+                <span class="streak-num" id="streakDays">1</span>
+                <span class="streak-unit">일 연속 완료</span>
+              </div>
+              <p class="streak-msg" id="streakMsg">멋져요! 계속해서 할 일을 마쳐보세요.</p>
+              <div class="streak-badges">
+                <div class="s-badge active" title="첫 완료 달성!"><i class="fa-solid fa-seedling"></i><span>시작</span></div>
+                <div class="s-badge" id="badge3d" title="3일 연속 완료"><i class="fa-solid fa-bolt"></i><span>3일</span></div>
+                <div class="s-badge" id="badge7d" title="7일 연속 완료"><i class="fa-solid fa-crown"></i><span>7일</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category Distribution Card -->
+          <div class="analytics-card category-analytics-card">
+            <h3>카테고리별 비중</h3>
+            <div id="categoryBars" class="category-bars-container">
+              <!-- Dynamically rendered bars -->
+            </div>
+          </div>
+
+          <!-- Priority Distribution Card -->
+          <div class="analytics-card priority-analytics-card">
+            <h3>우선순위 분포</h3>
+            <div class="priority-stats-grid">
+              <div class="p-stat-box p-high">
+                <span class="p-badge-dot"></span>
+                <span class="p-name">높음 🔥</span>
+                <span class="p-count" id="pCountHigh">0개</span>
+              </div>
+              <div class="p-stat-box p-medium">
+                <span class="p-badge-dot"></span>
+                <span class="p-name">보통 ⚡</span>
+                <span class="p-count" id="pCountMedium">0개</span>
+              </div>
+              <div class="p-stat-box p-low">
+                <span class="p-badge-dot"></span>
+                <span class="p-name">낮음 🌱</span>
+                <span class="p-count" id="pCountLow">0개</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 3: SETTINGS ==================== -->
+      <section id="settings-view" class="view-section hidden-view">
+        <div class="settings-header">
+          <h2><i class="fa-solid fa-sliders"></i> 애플리케이션 설정</h2>
+          <p>카테고리 관리, 데이터 백업 및 앱 맞춤 옵션을 설정합니다.</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Custom Categories Settings -->
+          <div class="settings-card">
+            <h3><i class="fa-solid fa-tags"></i> 카테고리 관리</h3>
+            <div class="category-manager">
+              <div id="categoryManagerList" class="category-manager-list">
+                <!-- Dynamically rendered -->
+              </div>
+              <button id="addCategoryBtn" class="btn btn-secondary w-full">
+                <i class="fa-solid fa-plus"></i> 새 카테고리 추가
+              </button>
+            </div>
+          </div>
+
+          <!-- Preferences & Sound -->
+          <div class="settings-card">
+            <h3><i class="fa-solid fa-sliders"></i> 일반 환경설정</h3>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">완료 알림 사운드</span>
+                <span class="setting-desc">할 일 완료 체크 시 효과음 재생</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="soundToggle" checked>
+                <span class="slider round"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">마감 경고 강조</span>
+                <span class="setting-desc">오늘/초과된 마감일을 붉은색 테마로 강조</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="overdueHighlightToggle" checked>
+                <span class="slider round"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Data Backup & Reset -->
+          <div class="settings-card danger-zone-card">
+            <h3><i class="fa-solid fa-database"></i> 데이터 관리 & 백업</h3>
+            <p class="setting-desc mb-4">작성한 할 일 목록 데이터를 파일로 내보내거나 기존 백업을 불러올 수 있습니다.</p>
+            
+            <div class="data-btn-group">
+              <button id="exportDataBtn" class="btn btn-secondary">
+                <i class="fa-solid fa-download"></i> 데이터 내보내기 (JSON)
+              </button>
+              
+              <label for="importFileInput" class="btn btn-secondary cursor-pointer">
+                <i class="fa-solid fa-upload"></i> 데이터 불러오기
+              </label>
+              <input type="file" id="importFileInput" accept=".json" class="hidden">
+
+              <button id="loadSampleDataBtn" class="btn btn-ghost">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 샘플 데이터 로드
+              </button>
+
+              <button id="resetDataBtn" class="btn btn-danger">
+                <i class="fa-solid fa-triangle-exclamation"></i> 전체 데이터 초기화
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- TASK DETAIL / ADD MODAL -->
+  <div id="taskModal" class="modal-backdrop hidden">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modalTitle"><i class="fa-solid fa-plus-circle"></i> 새 할 일 작성</h3>
+        <button class="modal-close-btn" id="closeTaskModalBtn">&times;</button>
+      </div>
+      <form id="taskDetailForm" class="modal-form">
+        <input type="hidden" id="modalTaskId" value="">
+
+        <!-- Title -->
+        <div class="form-group">
+          <label for="modalTaskTitle">할 일 제목 <span class="required">*</span></label>
+          <input type="text" id="modalTaskTitle" placeholder="어떤 일을 하셔야 하나요?" required autocomplete="off">
+        </div>
+
+        <!-- Description Note -->
+        <div class="form-group">
+          <label for="modalTaskDescription">상세 메모</label>
+          <textarea id="modalTaskDescription" rows="3" placeholder="필요한 세부사항이나 참고 메모를 작성하세요..."></textarea>
+        </div>
+
+        <!-- Category & Priority Row -->
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label for="modalTaskCategory">카테고리</label>
+            <select id="modalTaskCategory">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          <div class="form-group col-6">
+            <label for="modalTaskPriority">우선순위</label>
+            <select id="modalTaskPriority">
+              <option value="high">🔥 높음</option>
+              <option value="medium" selected>⚡ 보통</option>
+              <option value="low">🌱 낮음</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Due Date & Time Row -->
+        <div class="form-row">
+          <div class="form-group col-6">
+            <label for="modalTaskDueDate">마감일</label>
+            <input type="date" id="modalTaskDueDate">
+          </div>
+          <div class="form-group col-6">
+            <label for="modalTaskDueTime">마감시간</label>
+            <input type="time" id="modalTaskDueTime">
+          </div>
+        </div>
+
+        <!-- Star / Subtasks section header -->
+        <div class="form-group checkbox-form-group">
+          <label class="custom-checkbox-label">
+            <input type="checkbox" id="modalTaskStarred">
+            <span class="custom-checkbox-box"><i class="fa-solid fa-star"></i></span>
+            <span>중요 항목으로 표시 (⭐️)</span>
+          </label>
+        </div>
+
+        <!-- Subtasks List Input -->
+        <div class="form-group">
+          <label>세부 체크리스트 (Subtasks)</label>
+          <div id="subtasksContainer" class="subtasks-container">
+            <!-- Dynamically added subtasks -->
+          </div>
+          <div class="add-subtask-row">
+            <input type="text" id="newSubtaskInput" placeholder="세부 항목 추가..." autocomplete="off">
+            <button type="button" id="addSubtaskBtn" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-plus"></i> 추가
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="cancelTaskModalBtn">취소</button>
+          <button type="submit" class="btn btn-primary" id="saveTaskBtn">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD CATEGORY MODAL -->
+  <div id="categoryModal" class="modal-backdrop hidden">
+    <div class="modal-container modal-sm">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-tag"></i> 새 카테고리 추가</h3>
+        <button class="modal-close-btn" id="closeCategoryModalBtn">&times;</button>
+      </div>
+      <form id="categoryForm" class="modal-form">
+        <div class="form-group">
+          <label for="newCatName">카테고리 이름 <span class="required">*</span></label>
+          <input type="text" id="newCatName" placeholder="예: 운동, 독서, 프로젝트" required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label for="newCatIcon">아이콘 (이모지)</label>
+          <input type="text" id="newCatIcon" placeholder="예: 🏋️, 📚, 💻" value="📌">
+        </div>
+
+        <div class="form-group">
+          <label>포인트 색상</label>
+          <div class="color-picker-grid">
+            <label class="color-radio"><input type="radio" name="catColor" value="#6366f1" checked><span style="background: #6366f1;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#ec4899"><span style="background: #ec4899;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#10b981"><span style="background: #10b981;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#f59e0b"><span style="background: #f59e0b;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#8b5cf6"><span style="background: #8b5cf6;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#06b6d4"><span style="background: #06b6d4;"></span></label>
+            <label class="color-radio"><input type="radio" name="catColor" value="#f43f5e"><span style="background: #f43f5e;"></span></label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="cancelCategoryModalBtn">취소</button>
+          <button type="submit" class="btn btn-primary">생성하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION TOAST / MODAL -->
+  <div id="toastNotification" class="toast hidden">
+    <i class="fa-solid fa-circle-check toast-icon"></i>
+    <span id="toastMessage">완료되었습니다!</span>
+  </div>
+
+  <!-- JavaScript Entry Point -->
+  <script src="app.js"></script>
+</body>
+</html>
