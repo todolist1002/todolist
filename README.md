@@ -34,7 +34,7 @@
 
 ```bash
 # 저장소 클론
-git clone https://github.com/xodbs4898-byte/todolist.git
+git clone https://github.com/todolist1002/todolist.git
 
 # 폴더 이동
 cd todolist
