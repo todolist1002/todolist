@@ -1,13 +1,34 @@
 /**
  * TaskFlow - Smart To-Do List & Productivity Dashboard
- * Application Logic & State Management
+ * Application Logic & Supabase Database Integration
  */
 
 (function () {
   'use strict';
 
   // ==========================================
-  // 1. INITIAL STATE & DEFAULT CONFIGURATION
+  // 1. SUPABASE CLIENT & ENVIRONMENT VARIABLES
+  // ==========================================
+
+  // Read environment variables (supports Vite import.meta.env or window global fallback)
+  const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || window.VITE_SUPABASE_URL || '';
+  const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || window.VITE_SUPABASE_ANON_KEY || '';
+
+  let supabaseClient = null;
+
+  if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
+    try {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('✅ Supabase Client Initialized Successfully!');
+    } catch (err) {
+      console.warn('⚠️ Supabase init error:', err);
+    }
+  } else {
+    console.log('ℹ️ Supabase environment variables missing. Falling back to LocalStorage.');
+  }
+
+  // ==========================================
+  // 2. INITIAL STATE & DEFAULT CONFIGURATION
   // ==========================================
   
   const DEFAULT_CATEGORIES = [
@@ -49,7 +70,7 @@
       subtasks: [
         { id: 'sub-4', title: 'index.html 구조 잡기', completed: true },
         { id: 'sub-5', title: 'styles.css 테마 스타일 추가', completed: true },
-        { id: 'sub-6', title: 'app.js 로컬스토리지 연결', completed: false }
+        { id: 'sub-6', title: 'Supabase 연동 완료', completed: true }
       ],
       createdAt: Date.now() - 3600000
     },
@@ -98,29 +119,100 @@
   }
 
   // ==========================================
-  // 2. LOCALSTORAGE PERSISTENCE
+  // 3. DATA PERSISTENCE (SUPABASE + LOCALSTORAGE)
   // ==========================================
 
-  function loadStateFromStorage() {
+  async function loadStateFromStorage() {
     try {
-      const storedTasks = localStorage.getItem('taskflow_tasks');
       const storedCategories = localStorage.getItem('taskflow_categories');
       const storedSettings = localStorage.getItem('taskflow_settings');
       const storedTheme = localStorage.getItem('taskflow_theme');
 
       state.categories = storedCategories ? JSON.parse(storedCategories) : DEFAULT_CATEGORIES;
+      if (storedSettings) state.settings = { ...state.settings, ...JSON.parse(storedSettings) };
+      if (storedTheme) state.theme = storedTheme;
+
+      // Supabase Table Fetch
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.from('todos').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          state.tasks = data.map(row => ({
+            id: row.id,
+            title: row.title,
+            description: row.description || '',
+            category: row.category || 'work',
+            priority: row.priority || 'medium',
+            dueDate: row.due_date || '',
+            dueTime: row.due_time || '',
+            completed: !!row.completed,
+            starred: !!row.starred,
+            subtasks: Array.isArray(row.subtasks) ? row.subtasks : [],
+            createdAt: row.created_at ? Number(row.created_at) : Date.now()
+          }));
+          console.log(`📡 Fetched ${state.tasks.length} tasks from Supabase 'todos' table.`);
+          return;
+        } else if (error) {
+          console.warn('⚠️ Supabase fetch error (falling back to LocalStorage):', error.message);
+        }
+      }
+
+      // LocalStorage Fallback
+      const storedTasks = localStorage.getItem('taskflow_tasks');
       state.tasks = storedTasks ? JSON.parse(storedTasks) : SAMPLE_TASKS;
-      
-      if (storedSettings) {
-        state.settings = { ...state.settings, ...JSON.parse(storedSettings) };
-      }
-      if (storedTheme) {
-        state.theme = storedTheme;
-      }
     } catch (e) {
-      console.error('Failed to load state from localStorage:', e);
+      console.error('Failed to load state:', e);
       state.categories = DEFAULT_CATEGORIES;
       state.tasks = SAMPLE_TASKS;
+    }
+  }
+
+  async function saveTaskToDB(task) {
+    // 1. LocalStorage Backup
+    try {
+      localStorage.setItem('taskflow_tasks', JSON.stringify(state.tasks));
+      localStorage.setItem('taskflow_categories', JSON.stringify(state.categories));
+      localStorage.setItem('taskflow_settings', JSON.stringify(state.settings));
+      localStorage.setItem('taskflow_theme', state.theme);
+    } catch (e) {}
+
+    // 2. Supabase DB Upsert
+    if (supabaseClient && task) {
+      try {
+        const { error } = await supabaseClient.from('todos').upsert([{
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          category: task.category || 'work',
+          priority: task.priority || 'medium',
+          due_date: task.dueDate || '',
+          due_time: task.dueTime || '',
+          completed: task.completed,
+          starred: task.starred,
+          subtasks: task.subtasks || [],
+          created_at: task.createdAt || Date.now()
+        }]);
+
+        if (error) {
+          console.error('❌ Supabase save error:', error.message);
+        }
+      } catch (err) {
+        console.error('❌ Supabase save exception:', err);
+      }
+    }
+  }
+
+  async function deleteTaskFromDB(taskId) {
+    try {
+      localStorage.setItem('taskflow_tasks', JSON.stringify(state.tasks));
+    } catch (e) {}
+
+    if (supabaseClient) {
+      try {
+        const { error } = await supabaseClient.from('todos').delete().eq('id', taskId);
+        if (error) console.error('❌ Supabase delete error:', error.message);
+      } catch (err) {
+        console.error('❌ Supabase delete exception:', err);
+      }
     }
   }
 
@@ -130,13 +222,11 @@
       localStorage.setItem('taskflow_categories', JSON.stringify(state.categories));
       localStorage.setItem('taskflow_settings', JSON.stringify(state.settings));
       localStorage.setItem('taskflow_theme', state.theme);
-    } catch (e) {
-      console.error('Failed to save state to localStorage:', e);
-    }
+    } catch (e) {}
   }
 
   // ==========================================
-  // 3. SOUND SYNTHESIZER (WEB AUDIO API)
+  // 4. SOUND SYNTHESIZER (WEB AUDIO API)
   // ==========================================
 
   function playCompletionSound() {
@@ -150,9 +240,9 @@
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.1);
+      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.2);
 
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
@@ -162,13 +252,11 @@
 
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
-    } catch (err) {
-      // Audio context play blocked or unsupported
-    }
+    } catch (err) {}
   }
 
   // ==========================================
-  // 4. UI RENDERERS & VIEW MANAGERS
+  // 5. UI RENDERERS & VIEW MANAGERS
   // ==========================================
 
   function applyTheme() {
@@ -185,7 +273,6 @@
   function switchView(viewId) {
     state.currentView = viewId;
     
-    // Update nav tab buttons
     document.querySelectorAll('.nav-tab').forEach(tab => {
       if (tab.getAttribute('data-view') === viewId) {
         tab.classList.add('active');
@@ -194,7 +281,6 @@
       }
     });
 
-    // Toggle view sections
     document.querySelectorAll('.view-section').forEach(sec => {
       if (sec.id === viewId) {
         sec.classList.remove('hidden-view');
@@ -218,7 +304,6 @@
 
     if (!filterSelect || !modalSelect) return;
 
-    // Preserve selection
     const filterVal = filterSelect.value || 'all';
 
     filterSelect.innerHTML = '<option value="all">모든 카테고리</option>';
@@ -265,7 +350,6 @@
   function getFilteredAndSortedTasks() {
     let result = [...state.tasks];
 
-    // Filter by Search Query
     if (state.searchQuery.trim() !== '') {
       const q = state.searchQuery.toLowerCase();
       result = result.filter(t => 
@@ -274,7 +358,6 @@
       );
     }
 
-    // Filter by Tabs
     const todayStr = getTodayDateString();
     if (state.currentFilter === 'pending') {
       result = result.filter(t => !t.completed);
@@ -286,17 +369,12 @@
       result = result.filter(t => t.starred);
     }
 
-    // Filter by Category Select
     if (state.currentCategory !== 'all') {
       result = result.filter(t => t.category === state.currentCategory);
     }
 
-    // Sort Tasks
     result.sort((a, b) => {
-      // Completed items sent to bottom unless sorting by completed
-      if (a.completed !== b.completed) {
-        return a.completed ? 1 : -1;
-      }
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
 
       if (state.currentSort === 'priority') {
         const priorityScore = { high: 3, medium: 2, low: 1 };
@@ -341,10 +419,8 @@
     card.className = `task-card priority-${task.priority} ${task.completed ? 'completed' : ''}`;
     card.setAttribute('data-id', task.id);
 
-    // Category Lookup
     const cat = state.categories.find(c => c.id === task.category) || { name: '기타', icon: '💡', color: '#8b5cf6' };
 
-    // Due Date Badge Logic
     let dueBadgeHtml = '';
     if (task.dueDate) {
       const todayStr = getTodayDateString();
@@ -364,10 +440,8 @@
       dueBadgeHtml = `<span class="badge ${dueClass}"><i class="fa-regular fa-clock"></i> ${dueText}</span>`;
     }
 
-    // Priority Badge Text
     const priorityMap = { high: '🔥 높음', medium: '⚡ 보통', low: '🌱 낮음' };
 
-    // Subtasks Checklist HTML
     let subtasksHtml = '';
     if (task.subtasks && task.subtasks.length > 0) {
       const completedSub = task.subtasks.filter(s => s.completed).length;
@@ -430,7 +504,6 @@
       </div>
     `;
 
-    // Event Attachments inside card
     const checkbox = card.querySelector('.task-checkbox');
     checkbox.addEventListener('change', () => toggleTaskComplete(task.id));
 
@@ -446,7 +519,6 @@
     const delBtn = card.querySelector('.action-delete');
     delBtn.addEventListener('click', () => deleteTask(task.id));
 
-    // Subtask checkbox handlers
     card.querySelectorAll('.subtask-checkbox').forEach(sb => {
       sb.addEventListener('change', (e) => {
         const taskId = e.target.getAttribute('data-taskid');
@@ -472,10 +544,10 @@
   }
 
   // ==========================================
-  // 5. TASK ACTIONS (ADD, EDIT, DELETE, TOGGLE)
+  // 6. TASK ACTIONS (ADD, EDIT, DELETE, TOGGLE)
   // ==========================================
 
-  function addQuickTask(title) {
+  async function addQuickTask(title) {
     if (!title.trim()) return;
 
     const newTask = {
@@ -493,54 +565,52 @@
     };
 
     state.tasks.unshift(newTask);
-    saveStateToStorage();
     renderDashboard();
-    showToast('새 할 일이 추가되었습니다!');
+    await saveTaskToDB(newTask);
+    showToast('새 할 일이 저장되었습니다!');
   }
 
-  function toggleTaskComplete(taskId) {
+  async function toggleTaskComplete(taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (task) {
       task.completed = !task.completed;
-      if (task.completed) {
-        playCompletionSound();
-      }
-      saveStateToStorage();
+      if (task.completed) playCompletionSound();
       renderDashboard();
+      await saveTaskToDB(task);
     }
   }
 
-  function toggleTaskStarred(taskId) {
+  async function toggleTaskStarred(taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (task) {
       task.starred = !task.starred;
-      saveStateToStorage();
       renderDashboard();
+      await saveTaskToDB(task);
     }
   }
 
-  function toggleSubtaskComplete(taskId, subId) {
+  async function toggleSubtaskComplete(taskId, subId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (task && task.subtasks) {
       const sub = task.subtasks.find(s => s.id === subId);
       if (sub) {
         sub.completed = !sub.completed;
-        saveStateToStorage();
         renderDashboard();
+        await saveTaskToDB(task);
       }
     }
   }
 
-  function deleteTask(taskId) {
+  async function deleteTask(taskId) {
     if (confirm('이 할 일을 삭제하시겠습니까?')) {
       state.tasks = state.tasks.filter(t => t.id !== taskId);
-      saveStateToStorage();
       renderDashboard();
+      await deleteTaskFromDB(taskId);
       showToast('할 일이 삭제되었습니다.');
     }
   }
 
-  function duplicateTask(taskId) {
+  async function duplicateTask(taskId) {
     const task = state.tasks.find(t => t.id === taskId);
     if (task) {
       const dup = {
@@ -551,28 +621,30 @@
         createdAt: Date.now()
       };
       state.tasks.unshift(dup);
-      saveStateToStorage();
       renderDashboard();
+      await saveTaskToDB(dup);
       showToast('할 일이 복사되었습니다.');
     }
   }
 
-  function clearCompletedTasks() {
-    const count = state.tasks.filter(t => t.completed).length;
-    if (count === 0) {
+  async function clearCompletedTasks() {
+    const completedTasks = state.tasks.filter(t => t.completed);
+    if (completedTasks.length === 0) {
       showToast('완료된 할 일이 없습니다.');
       return;
     }
-    if (confirm(`완료된 할 일 ${count}개를 모두 정리하시겠습니까?`)) {
+    if (confirm(`완료된 할 일 ${completedTasks.length}개를 모두 정리하시겠습니까?`)) {
+      for (const t of completedTasks) {
+        await deleteTaskFromDB(t.id);
+      }
       state.tasks = state.tasks.filter(t => !t.completed);
-      saveStateToStorage();
       renderDashboard();
       showToast('완료된 항목이 정리되었습니다.');
     }
   }
 
   // ==========================================
-  // 6. MODAL MANAGEMENT (TASK EDIT / ADD)
+  // 7. MODAL MANAGEMENT (TASK EDIT / ADD)
   // ==========================================
 
   function openTaskCreateModal() {
@@ -655,7 +727,7 @@
     }
   }
 
-  function saveTaskModalForm(e) {
+  async function saveTaskModalForm(e) {
     e.preventDefault();
     const title = document.getElementById('modalTaskTitle').value.trim();
     if (!title) return;
@@ -667,23 +739,23 @@
     const dueTime = document.getElementById('modalTaskDueTime').value;
     const starred = document.getElementById('modalTaskStarred').checked;
 
+    let targetTask = null;
+
     if (state.editingTaskId) {
-      // Edit Existing
-      const task = state.tasks.find(t => t.id === state.editingTaskId);
-      if (task) {
-        task.title = title;
-        task.description = desc;
-        task.category = cat;
-        task.priority = prio;
-        task.dueDate = dueDate;
-        task.dueTime = dueTime;
-        task.starred = starred;
-        task.subtasks = state.tempSubtasks;
+      targetTask = state.tasks.find(t => t.id === state.editingTaskId);
+      if (targetTask) {
+        targetTask.title = title;
+        targetTask.description = desc;
+        targetTask.category = cat;
+        targetTask.priority = prio;
+        targetTask.dueDate = dueDate;
+        targetTask.dueTime = dueTime;
+        targetTask.starred = starred;
+        targetTask.subtasks = state.tempSubtasks;
       }
       showToast('할 일이 수정되었습니다.');
     } else {
-      // Create New
-      const newTask = {
+      targetTask = {
         id: 'task-' + Date.now(),
         title,
         description: desc,
@@ -696,17 +768,17 @@
         subtasks: state.tempSubtasks,
         createdAt: Date.now()
       };
-      state.tasks.unshift(newTask);
-      showToast('새 할 일이 생성되었습니다.');
+      state.tasks.unshift(targetTask);
+      showToast('새 할 일이 저장되었습니다.');
     }
 
-    saveStateToStorage();
     closeTaskModal();
     renderDashboard();
+    await saveTaskToDB(targetTask);
   }
 
   // ==========================================
-  // 7. VIEW 2: ANALYTICS & STATS LOGIC
+  // 8. VIEW 2: ANALYTICS & STATS LOGIC
   // ==========================================
 
   function renderAnalyticsView() {
@@ -715,17 +787,15 @@
     const pending = total - completed;
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    // Donut SVG Update
     document.getElementById('analyticsPercent').textContent = `${percent}%`;
     document.getElementById('analyticsCompleted').textContent = completed;
     document.getElementById('analyticsPending').textContent = pending;
 
     const donutCircle = document.getElementById('donutProgress');
-    const circumference = 2 * Math.PI * 70; // r=70 -> ~439.8
+    const circumference = 2 * Math.PI * 70;
     const offset = circumference - (percent / 100) * circumference;
     donutCircle.style.strokeDashoffset = offset;
 
-    // Priority Distribution
     const high = state.tasks.filter(t => t.priority === 'high').length;
     const med = state.tasks.filter(t => t.priority === 'medium').length;
     const low = state.tasks.filter(t => t.priority === 'low').length;
@@ -734,7 +804,6 @@
     document.getElementById('pCountMedium').textContent = `${med}개`;
     document.getElementById('pCountLow').textContent = `${low}개`;
 
-    // Category Bars
     const catBarsContainer = document.getElementById('categoryBars');
     catBarsContainer.innerHTML = '';
 
@@ -757,10 +826,9 @@
       catBarsContainer.appendChild(item);
     });
 
-    // Streak calculation mock
     const streak = completed > 0 ? Math.min(completed, 7) : 0;
     document.getElementById('streakDays').textContent = streak;
-    
+
     if (streak >= 3) document.getElementById('badge3d').classList.add('active');
     else document.getElementById('badge3d').classList.remove('active');
 
@@ -769,7 +837,7 @@
   }
 
   // ==========================================
-  // 8. VIEW 3: SETTINGS & CATEGORY MANAGER
+  // 9. VIEW 3: SETTINGS & CATEGORY MANAGER
   // ==========================================
 
   function renderSettingsView() {
@@ -848,7 +916,6 @@
     showToast('새 카테고리가 추가되었습니다!');
   }
 
-  // Backup Data JSON Export / Import
   function exportData() {
     const data = {
       tasks: state.tasks,
@@ -871,11 +938,14 @@
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function (evt) {
+    reader.onload = async function (evt) {
       try {
         const imported = JSON.parse(evt.target.result);
         if (imported.tasks && Array.isArray(imported.tasks)) {
           state.tasks = imported.tasks;
+          for (const t of state.tasks) {
+            await saveTaskToDB(t);
+          }
         }
         if (imported.categories && Array.isArray(imported.categories)) {
           state.categories = imported.categories;
@@ -892,8 +962,13 @@
     e.target.value = '';
   }
 
-  function resetAllData() {
+  async function resetAllData() {
     if (confirm('경고: 모든 할 일 및 데이터가 삭제됩니다. 계속하시겠습니까?')) {
+      if (supabaseClient) {
+        for (const t of state.tasks) {
+          await deleteTaskFromDB(t.id);
+        }
+      }
       state.tasks = [];
       state.categories = DEFAULT_CATEGORIES;
       saveStateToStorage();
@@ -903,16 +978,20 @@
     }
   }
 
-  function loadSampleData() {
+  async function loadSampleData() {
     state.tasks = SAMPLE_TASKS;
     state.categories = DEFAULT_CATEGORIES;
     saveStateToStorage();
+    if (supabaseClient) {
+      for (const t of SAMPLE_TASKS) {
+        await saveTaskToDB(t);
+      }
+    }
     renderCategoryOptions();
     renderDashboard();
     showToast('샘플 데이터가 로드되었습니다.');
   }
 
-  // Toast Notification
   function showToast(msg) {
     const toast = document.getElementById('toastNotification');
     const toastMsg = document.getElementById('toastMessage');
@@ -927,18 +1006,16 @@
   }
 
   // ==========================================
-  // 9. EVENT LISTENERS SETUP
+  // 10. EVENT LISTENERS SETUP
   // ==========================================
 
   function initEventListeners() {
-    // Theme Toggle
     document.getElementById('themeToggleBtn').addEventListener('click', () => {
       state.theme = state.theme === 'dark' ? 'light' : 'dark';
       applyTheme();
       saveStateToStorage();
     });
 
-    // Nav View Tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const viewId = tab.getAttribute('data-view');
@@ -946,7 +1023,6 @@
       });
     });
 
-    // Quick Task Form
     document.getElementById('quickTaskForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const input = document.getElementById('quickTaskTitle');
@@ -954,13 +1030,11 @@
       input.value = '';
     });
 
-    // Open Detail Add Modal
     document.getElementById('openDetailModalBtn').addEventListener('click', openTaskCreateModal);
     document.getElementById('closeTaskModalBtn').addEventListener('click', closeTaskModal);
     document.getElementById('cancelTaskModalBtn').addEventListener('click', closeTaskModal);
     document.getElementById('taskDetailForm').addEventListener('submit', saveTaskModalForm);
 
-    // Subtasks Add inside modal
     document.getElementById('addSubtaskBtn').addEventListener('click', addTempSubtask);
     document.getElementById('newSubtaskInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
@@ -969,7 +1043,6 @@
       }
     });
 
-    // Filter Buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -979,44 +1052,36 @@
       });
     });
 
-    // Category Filter Select
     document.getElementById('categoryFilter').addEventListener('change', (e) => {
       state.currentCategory = e.target.value;
       renderFilteredTaskList();
     });
 
-    // Sort Select
     document.getElementById('sortSelect').addEventListener('change', (e) => {
       state.currentSort = e.target.value;
       renderFilteredTaskList();
     });
 
-    // Clear Completed Button
     document.getElementById('clearCompletedBtn').addEventListener('click', clearCompletedTasks);
 
-    // Live Search
     const searchInput = document.getElementById('searchInput');
     searchInput.addEventListener('input', (e) => {
       state.searchQuery = e.target.value;
       renderFilteredTaskList();
     });
 
-    // Global Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
-      // Shortcut '/' focus search
       if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
         e.preventDefault();
         searchInput.focus();
       }
     });
 
-    // Category Settings & Modals
     document.getElementById('addCategoryBtn').addEventListener('click', openAddCategoryModal);
     document.getElementById('closeCategoryModalBtn').addEventListener('click', closeCategoryModal);
     document.getElementById('cancelCategoryModalBtn').addEventListener('click', closeCategoryModal);
     document.getElementById('categoryForm').addEventListener('submit', saveCategoryForm);
 
-    // Sound and Preference toggles
     document.getElementById('soundToggle').addEventListener('change', (e) => {
       state.settings.sound = e.target.checked;
       saveStateToStorage();
@@ -1027,7 +1092,6 @@
       saveStateToStorage();
     });
 
-    // Backup & Restore
     document.getElementById('exportDataBtn').addEventListener('click', exportData);
     document.getElementById('importFileInput').addEventListener('change', importData);
     document.getElementById('resetDataBtn').addEventListener('click', resetAllData);
@@ -1035,18 +1099,17 @@
   }
 
   // ==========================================
-  // 10. APP INITIALIZATION
+  // 11. APP INITIALIZATION
   // ==========================================
 
-  function initApp() {
-    loadStateFromStorage();
+  async function initApp() {
+    await loadStateFromStorage();
     applyTheme();
     renderCategoryOptions();
     initEventListeners();
     renderDashboard();
   }
 
-  // Run on DOM Ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
   } else {
