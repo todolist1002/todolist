@@ -10,26 +10,13 @@
   // 1. SUPABASE CLIENT & ENVIRONMENT VARIABLES
   // ==========================================
 
-  // Read environment variables (supports window globals and dynamic Vite env)
+  // Read environment variables (100% safe across all browsers & static file execution)
   let SUPABASE_URL = '';
   let SUPABASE_ANON_KEY = '';
 
-  // 1. Try reading from window globals or Vercel injected config
   if (typeof window !== 'undefined') {
-    SUPABASE_URL = window.VITE_SUPABASE_URL || window.ENV?.VITE_SUPABASE_URL || '';
-    SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || window.ENV?.VITE_SUPABASE_ANON_KEY || '';
-  }
-
-  // 2. Try reading from bundler import.meta.env dynamically
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    try {
-      const getEnv = new Function('try { return import.meta.env; } catch(e) { return null; }');
-      const env = getEnv();
-      if (env) {
-        if (!SUPABASE_URL) SUPABASE_URL = env.VITE_SUPABASE_URL || '';
-        if (!SUPABASE_ANON_KEY) SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || '';
-      }
-    } catch (e) {}
+    SUPABASE_URL = window.VITE_SUPABASE_URL || window.ENV?.VITE_SUPABASE_URL || (window.process && window.process.env && window.process.env.VITE_SUPABASE_URL) || '';
+    SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || window.ENV?.VITE_SUPABASE_ANON_KEY || (window.process && window.process.env && window.process.env.VITE_SUPABASE_ANON_KEY) || '';
   }
 
   let supabaseClient = null;
