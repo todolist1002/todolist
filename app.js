@@ -10,22 +10,24 @@
   // 1. SUPABASE CLIENT & ENVIRONMENT VARIABLES
   // ==========================================
 
-  // Read environment variables (supports Vite import.meta.env or window global fallback)
+  // Read environment variables (safely evaluates import.meta without script parse error)
   let SUPABASE_URL = '';
   let SUPABASE_ANON_KEY = '';
 
   try {
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-      SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    const getImportMetaEnv = new Function('try { return import.meta.env; } catch(e) { return null; }');
+    const metaEnv = getImportMetaEnv();
+    if (metaEnv) {
+      SUPABASE_URL = metaEnv.VITE_SUPABASE_URL || '';
+      SUPABASE_ANON_KEY = metaEnv.VITE_SUPABASE_ANON_KEY || '';
     }
   } catch (e) {}
 
   if (!SUPABASE_URL && typeof window !== 'undefined') {
-    SUPABASE_URL = window.VITE_SUPABASE_URL || '';
+    SUPABASE_URL = window.VITE_SUPABASE_URL || window.ENV?.VITE_SUPABASE_URL || '';
   }
   if (!SUPABASE_ANON_KEY && typeof window !== 'undefined') {
-    SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || '';
+    SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || window.ENV?.VITE_SUPABASE_ANON_KEY || '';
   }
 
   let supabaseClient = null;
