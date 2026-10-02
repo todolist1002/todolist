@@ -11,8 +11,22 @@
   // ==========================================
 
   // Read environment variables (supports Vite import.meta.env or window global fallback)
-  const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || window.VITE_SUPABASE_URL || '';
-  const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || window.VITE_SUPABASE_ANON_KEY || '';
+  let SUPABASE_URL = '';
+  let SUPABASE_ANON_KEY = '';
+
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+      SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    }
+  } catch (e) {}
+
+  if (!SUPABASE_URL && typeof window !== 'undefined') {
+    SUPABASE_URL = window.VITE_SUPABASE_URL || '';
+  }
+  if (!SUPABASE_ANON_KEY && typeof window !== 'undefined') {
+    SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || '';
+  }
 
   let supabaseClient = null;
 
