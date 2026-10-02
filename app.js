@@ -10,24 +10,26 @@
   // 1. SUPABASE CLIENT & ENVIRONMENT VARIABLES
   // ==========================================
 
-  // Read environment variables (safely evaluates import.meta without script parse error)
+  // Read environment variables (supports window globals and dynamic Vite env)
   let SUPABASE_URL = '';
   let SUPABASE_ANON_KEY = '';
 
-  try {
-    const getImportMetaEnv = new Function('try { return import.meta.env; } catch(e) { return null; }');
-    const metaEnv = getImportMetaEnv();
-    if (metaEnv) {
-      SUPABASE_URL = metaEnv.VITE_SUPABASE_URL || '';
-      SUPABASE_ANON_KEY = metaEnv.VITE_SUPABASE_ANON_KEY || '';
-    }
-  } catch (e) {}
-
-  if (!SUPABASE_URL && typeof window !== 'undefined') {
+  // 1. Try reading from window globals or Vercel injected config
+  if (typeof window !== 'undefined') {
     SUPABASE_URL = window.VITE_SUPABASE_URL || window.ENV?.VITE_SUPABASE_URL || '';
-  }
-  if (!SUPABASE_ANON_KEY && typeof window !== 'undefined') {
     SUPABASE_ANON_KEY = window.VITE_SUPABASE_ANON_KEY || window.ENV?.VITE_SUPABASE_ANON_KEY || '';
+  }
+
+  // 2. Try reading from bundler import.meta.env dynamically
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    try {
+      const getEnv = new Function('try { return import.meta.env; } catch(e) { return null; }');
+      const env = getEnv();
+      if (env) {
+        if (!SUPABASE_URL) SUPABASE_URL = env.VITE_SUPABASE_URL || '';
+        if (!SUPABASE_ANON_KEY) SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || '';
+      }
+    } catch (e) {}
   }
 
   let supabaseClient = null;
